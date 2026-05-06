@@ -18,15 +18,15 @@ const DB_USER = "root";
 const DB_PASS = "547737";
 
 try {
-    $pdo = new PDO(
-        "pgsql:host=db.mtmwqifkzytywsvhpnlp.supabase.co;port=5432;dbname=postgres",
-        "postgres",
-        "zaidan547737$$",
-        [
-            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-        ]
-    );
+ $pdo = new PDO(
+    "pgsql:host=" . getenv("DB_HOST") . ";port=5432;dbname=" . getenv("DB_NAME"),
+    getenv("DB_USER"),
+    getenv("DB_PASS"),
+    [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+    ]
+);
 } catch (PDOException $exception) {
     sendJson(
         500,
