@@ -12,16 +12,11 @@ if ($_SERVER["REQUEST_METHOD"] === "OPTIONS") {
     exit;
 }
 
-const DB_HOST = "localhost";
-const DB_NAME = "ETC_ecommerce";
-const DB_USER = "root";
-const DB_PASS = "547737";
-
 try {
     $pdo = new PDO(
         "pgsql:host=db.mtmwqifkzytywsvhpnlp.supabase.co;port=5432;dbname=postgres",
         "postgres",
-        "zaidan547737%%",
+        "zaidan547737$$",
         [
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
@@ -232,7 +227,7 @@ function registerUser(PDO $pdo, array $input): void
 
     if (hasRoleColumn($pdo)) {
         $statement = $pdo->prepare(
-            "INSERT INTO users (email, password, verified, role) VALUES (:email, :password, :verified, :role)"
+            "INSERT INTO users (email, password, verified, role) VALUES (:email, :password, :verified, :role) RETURNING id"
         );
         $statement->execute([
             ":email" => $email,
@@ -242,7 +237,7 @@ function registerUser(PDO $pdo, array $input): void
         ]);
     } else {
         $statement = $pdo->prepare(
-            "INSERT INTO users (email, password, verified) VALUES (:email, :password, :verified)"
+            "INSERT INTO users (email, password, verified) VALUES (:email, :password, :verified) RETURNING id"
         );
         $statement->execute([
             ":email" => $email,
@@ -251,7 +246,8 @@ function registerUser(PDO $pdo, array $input): void
         ]);
     }
 
-    $userId = (int) $pdo->lastInsertId();
+    $row = $statement->fetch();
+    $userId = (int) $row["id"];
     $user = findUserById($pdo, $userId);
 
     sendJson(201, [
@@ -736,7 +732,8 @@ function createTransaction(PDO $pdo, array $input): void
     try {
         $statement = $pdo->prepare(
             "INSERT INTO transactions (id_user, customer_name, customer_email, payment_method, payment_proof, status)
-             VALUES (:id_user, :customer_name, :customer_email, :payment_method, :payment_proof, 'pending')"
+             VALUES (:id_user, :customer_name, :customer_email, :payment_method, :payment_proof, 'pending')
+             RETURNING id_transaction"
         );
         $statement->execute([
             ":id_user" => $userId,
@@ -746,7 +743,7 @@ function createTransaction(PDO $pdo, array $input): void
             ":payment_proof" => $paymentProof,
         ]);
 
-        $transactionId = (int) $pdo->lastInsertId();
+        $transactionId = (int) $statement->fetchColumn();
         $itemStatement = $pdo->prepare(
             "INSERT INTO transaction_items
              (id_transaction, id_product, product_name, product_category, product_price, qty, product_image, subtotal)
@@ -839,7 +836,8 @@ function addComment(PDO $pdo, array $input): void
 
     $statement = $pdo->prepare(
         "INSERT INTO comments (id_user, id_product, user_email, message)
-         VALUES (:id_user, :id_product, :user_email, :message)"
+         VALUES (:id_user, :id_product, :user_email, :message)
+         RETURNING id_comment"
     );
     $statement->execute([
         ":id_user" => $userId,
@@ -848,11 +846,13 @@ function addComment(PDO $pdo, array $input): void
         ":message" => $message,
     ]);
 
+    $newCommentId = (int) $statement->fetchColumn();
+
     sendJson(201, [
         "success" => true,
         "message" => "Komentar berhasil dikirim.",
         "data" => [
-            "item" => findCommentById($pdo, (int) $pdo->lastInsertId()),
+            "item" => findCommentById($pdo, $newCommentId),
             "items" => fetchComments($pdo),
         ],
     ]);
@@ -924,7 +924,8 @@ function saveProduct(PDO $pdo, array $input): void
     } else {
         $statement = $pdo->prepare(
             "INSERT INTO product (id_category, name, price, image, description)
-             VALUES (:id_category, :name, :price, :image, :description)"
+             VALUES (:id_category, :name, :price, :image, :description)
+             RETURNING id_product"
         );
         $statement->execute([
             ":id_category" => $categoryId,
@@ -933,7 +934,7 @@ function saveProduct(PDO $pdo, array $input): void
             ":image" => $image,
             ":description" => $description,
         ]);
-        $productId = (int) $pdo->lastInsertId();
+        $productId = (int) $statement->fetchColumn();
     }
 
     syncProductContents($pdo, $productId, $contents);
@@ -1257,14 +1258,15 @@ function findOrCreateCategoryId(PDO $pdo, string $categoryName): int
 
     $statement = $pdo->prepare(
         "INSERT INTO category (name, slug)
-         VALUES (:name, :slug)"
+         VALUES (:name, :slug)
+         RETURNING id_category"
     );
     $statement->execute([
         ":name" => $normalizedName,
         ":slug" => $slug,
     ]);
 
-    return (int) $pdo->lastInsertId();
+    return (int) $statement->fetchColumn();
 }
 
 function categorySlugExists(PDO $pdo, string $slug): bool
@@ -1640,7 +1642,11 @@ function hasRoleColumn(PDO $pdo): bool
         return $hasRoleColumn;
     }
 
-    $statement = $pdo->query("SHOW COLUMNS FROM users LIKE 'role'");
+    $statement = $pdo->query(
+        "SELECT 1 FROM information_schema.columns
+         WHERE table_name = 'users' AND column_name = 'role'
+         LIMIT 1"
+    );
     $hasRoleColumn = (bool) $statement->fetch();
 
     return $hasRoleColumn;
@@ -1654,7 +1660,11 @@ function hasProductContentsTable(PDO $pdo): bool
         return $hasProductContentsTable;
     }
 
-    $statement = $pdo->query("SHOW TABLES LIKE 'product_contents'");
+    $statement = $pdo->query(
+        "SELECT 1 FROM information_schema.tables
+         WHERE table_name = 'product_contents'
+         LIMIT 1"
+    );
     $hasProductContentsTable = (bool) $statement->fetch();
 
     return $hasProductContentsTable;
