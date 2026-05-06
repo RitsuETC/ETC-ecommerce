@@ -12,6 +12,11 @@ if ($_SERVER["REQUEST_METHOD"] === "OPTIONS") {
     exit;
 }
 
+const DB_HOST = "localhost";
+const DB_NAME = "ETC_ecommerce";
+const DB_USER = "root";
+const DB_PASS = "547737";
+
 try {
     $pdo = new PDO(
         "pgsql:host=db.mtmwqifkzytywsvhpnlp.supabase.co;port=5432;dbname=postgres",
@@ -246,8 +251,7 @@ function registerUser(PDO $pdo, array $input): void
         ]);
     }
 
-    $row = $statement->fetch();
-    $userId = (int) $row["id"];
+    $userId = (int) $statement->fetchColumn();
     $user = findUserById($pdo, $userId);
 
     sendJson(201, [
@@ -846,13 +850,11 @@ function addComment(PDO $pdo, array $input): void
         ":message" => $message,
     ]);
 
-    $newCommentId = (int) $statement->fetchColumn();
-
     sendJson(201, [
         "success" => true,
         "message" => "Komentar berhasil dikirim.",
         "data" => [
-            "item" => findCommentById($pdo, $newCommentId),
+            "item" => findCommentById($pdo, (int) $statement->fetchColumn()),
             "items" => fetchComments($pdo),
         ],
     ]);
@@ -1642,11 +1644,14 @@ function hasRoleColumn(PDO $pdo): bool
         return $hasRoleColumn;
     }
 
-    $statement = $pdo->query(
-        "SELECT 1 FROM information_schema.columns
-         WHERE table_name = 'users' AND column_name = 'role'
+    $statement = $pdo->prepare(
+        "SELECT 1
+         FROM information_schema.columns
+         WHERE table_name = 'users'
+           AND column_name = 'role'
          LIMIT 1"
     );
+    $statement->execute();
     $hasRoleColumn = (bool) $statement->fetch();
 
     return $hasRoleColumn;
@@ -1660,11 +1665,14 @@ function hasProductContentsTable(PDO $pdo): bool
         return $hasProductContentsTable;
     }
 
-    $statement = $pdo->query(
-        "SELECT 1 FROM information_schema.tables
+    $statement = $pdo->prepare(
+        "SELECT 1
+         FROM information_schema.tables
          WHERE table_name = 'product_contents'
+           AND table_schema = 'public'
          LIMIT 1"
     );
+    $statement->execute();
     $hasProductContentsTable = (bool) $statement->fetch();
 
     return $hasProductContentsTable;
