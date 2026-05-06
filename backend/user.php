@@ -21,7 +21,7 @@ try {
     $pdo = new PDO(
         "pgsql:host=db.mtmwqifkzytywsvhpnlp.supabase.co;port=5432;dbname=postgres",
         "postgres",
-        zaidan547737%%,
+        "zaidan547737%%",
         [
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
