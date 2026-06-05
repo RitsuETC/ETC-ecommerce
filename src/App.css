@@ -1000,27 +1000,39 @@
 }
 
 .admin-topbar {
-  min-height: 96px;
+  min-height: 195px;
   padding: 18px 22px;
   background: #fff;
   display: flex;
   align-items: center;
+  justify-content: center;
 }
 
 .admin-brand {
-  width: 46px;
-  height: 46px;
-  border-radius: 999px;
-  border: 4px solid #000;
+  width: 158px;
+  height: 158px;
+  border-radius: 0;
+  border: none;
   display: grid;
   place-items: center;
   transform: skewX(-10deg);
 }
 
+.admin-brand-logo {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  transform: skewX(10deg);
+  justify-content: center;
+  align-items: center;
+}
+
 .admin-brand-mark {
-  font-size: 1.8rem;
+  font-size: 4.2rem;
   font-weight: 900;
   line-height: 1;
+  transform: skewX(10deg); /* Menetralkan kemiringan agar teks P tetap tegak */
 }
 
 .admin-nav {
@@ -1666,6 +1678,7 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: top;
   display: block;
 }
 
@@ -2059,12 +2072,20 @@
   }
 
   .products {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
   }
 
   .banner-image-only {
     min-height: 220px;
     padding: 12px;
+  }
+
+  .admin-brand-logo {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    transform: skewX(10deg); /* Counter-skew to make the image straight */
   }
 
   .admin-nav {

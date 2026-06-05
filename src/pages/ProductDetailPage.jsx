@@ -23,6 +23,11 @@ function ProductDetailPage({
   function handleCommentSubmit(event) {
     event.preventDefault();
 
+    if (!commentInput.trim()) {
+      setCommentMessage("Komentar tidak boleh kosong.");
+      return;
+    }
+
     const result = onAddComment(selectedProduct.id, commentInput);
     setCommentMessage(result.message);
 
@@ -102,7 +107,7 @@ function ProductDetailPage({
                 placeholder="Tulis komentar kamu tentang produk ini"
                 rows="4"
               />
-              <button type="submit">Kirim komentar</button>
+              <button type="submit" disabled={!user || !commentInput.trim()}>Kirim komentar</button>
             </form>
 
             {commentMessage ? (

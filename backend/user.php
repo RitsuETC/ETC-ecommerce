@@ -19,9 +19,9 @@ const DB_PASS = "547737";
 
 try {
     $pdo = new PDO(
-        "pgsql:host=db.mtmwqifkzytywsvhpnlp.supabase.co;port=5432;dbname=postgres",
-        "postgres",
-        zaidan547737%%,
+        "mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=utf8mb4",
+        DB_USER,
+        DB_PASS,
         [
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
@@ -198,8 +198,8 @@ function registerUser(PDO $pdo, array $input): void
 {
     $email = strtolower(trim((string) ($input["email"] ?? "")));
     $password = (string) ($input["password"] ?? "");
-    $verified = isset($input["verified"]) ? (int) ((bool) $input["verified"]) : 0;
-    $role = strtolower(trim((string) ($input["role"] ?? "user")));
+    $verified = 1; 
+    $role = "user";
 
     if ($email === "" || $password === "") {
         sendJson(422, [
@@ -238,7 +238,7 @@ function registerUser(PDO $pdo, array $input): void
             ":email" => $email,
             ":password" => password_hash($password, PASSWORD_DEFAULT),
             ":verified" => $verified,
-            ":role" => $role === "admin" ? "admin" : "user",
+            ":role" => $role,
         ]);
     } else {
         $statement = $pdo->prepare(
@@ -1707,6 +1707,7 @@ function initializeSession(): void
     }
 
     $sessionPath = sys_get_temp_dir() . "/etc_ecommerce_sessions";
+    
     if (!is_dir($sessionPath)) {
         @mkdir($sessionPath, 0775, true);
     }

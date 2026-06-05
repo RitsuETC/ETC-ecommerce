@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { formatPrice, parsePrice } from "../utils/price";
 import ProductStore from "../utils/productStore";
 
-const adminMenu = ["PRODUK", "USER", "TRANSAKSI", "IMG"];
+const adminMenu = ["PRODUK", "USER", "TRANSAKSI"];
 
 const EMPTY_FORM = {
   id: "",
@@ -41,6 +41,7 @@ function AdminPage({
   const [editingProductId, setEditingProductId] = useState("");
   const [formData, setFormData] = useState(EMPTY_FORM);
   const [formMessage, setFormMessage] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isImageDragging, setIsImageDragging] = useState(false);
   const fileInputRef = useRef(null);
   const productSliderRef = useRef(null);
@@ -49,45 +50,83 @@ function AdminPage({
     () => [...new Set(products.map((product) => product.category).filter(Boolean))],
     [products]
   );
-  const buyerUsers = useMemo(() => {
-    const seenEmails = new Set();
 
-    return [...transactions]
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-      .filter((transaction) => {
-        const email = (transaction.customerEmail || "").trim().toLowerCase();
-        if (!email || seenEmails.has(email)) return false;
-        seenEmails.add(email);
-        return true;
-      })
-      .map((transaction) => ({
-        id: transaction.customerEmail || transaction.id,
-        name: transaction.customerName || "User ETC",
-        email: transaction.customerEmail || "-",
-        status: transaction.status,
-        totalPrice: transaction.totalPrice,
-        createdAt: transaction.createdAt,
-      }));
-  }, [transactions]);
+  const buyerUsers = useMemo(() => {
+    const usersMap = new Map();
+
+    const deriveName = (email) => {
+      const localPart = String(email || "").split("@")[0].replace(/[._-]+/g, " ").trim();
+      return localPart ? localPart.replace(/\b\w/g, (char) => char.toUpperCase()) : "User ETC";
+    };
+
+    
+    transactions.forEach((t) => {
+      const email = (t.customerEmail || "").trim().toLowerCase();
+      if (!email) return;
+      
+      const current = usersMap.get(email);
+      const spent = parseFloat(t.totalPrice || 0);
+      
+      if (!current) {
+        usersMap.set(email, {
+          id: email,
+          name: t.customerName || deriveName(email),
+          email: email,
+          status: t.status,
+          totalPrice: spent,
+          createdAt: t.createdAt,
+        });
+      } else {
+        current.totalPrice += spent;
+        if (new Date(t.createdAt) > new Date(current.createdAt)) {
+          current.createdAt = t.createdAt;
+          current.status = t.status;
+        }
+      }
+    });
+
+    
+    comments.forEach((c) => {
+      const email = (c.userEmail || "").trim().toLowerCase();
+      if (!email) return;
+      
+      if (!usersMap.has(email)) {
+        usersMap.set(email, {
+          id: email,
+          name: c.userName || deriveName(email),
+          email: email,
+          status: "active",
+          totalPrice: 0,
+          createdAt: c.createdAt,
+        });
+      } else {
+        const u = usersMap.get(email);
+        if (new Date(c.createdAt) > new Date(u.createdAt)) {
+          u.createdAt = c.createdAt;
+        }
+      }
+    });
+
+    return Array.from(usersMap.values()).sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+  }, [transactions, comments]);
+
   const buyerUsersWithComments = useMemo(
     () =>
       buyerUsers.map((buyer) => {
-        const latestComment = [...comments]
+        const userComments = [...comments]
           .filter(
             (comment) => comment.userEmail.trim().toLowerCase() === buyer.email.trim().toLowerCase()
           )
-          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
-        const commentedProduct = latestComment
-          ? products.find((product) => product.id === latestComment.productId) || null
-          : null;
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
         return {
           ...buyer,
-          latestComment,
-          commentedProductName: commentedProduct?.name || "",
+          allComments: userComments,
         };
       }),
-    [buyerUsers, comments, products]
+    [buyerUsers, comments]
   );
 
   useEffect(() => {
@@ -119,6 +158,12 @@ function AdminPage({
   function readImageFile(file) {
     if (!file || !file.type.startsWith("image/")) {
       setFormMessage("File gambar harus berupa image.");
+      return;
+    }
+
+    const MAX_SIZE = 2 * 1024 * 1024; 
+    if (file.size > MAX_SIZE) {
+      setFormMessage("Ukuran gambar terlalu besar. Maksimal 2MB.");
       return;
     }
 
@@ -162,6 +207,7 @@ function AdminPage({
       editingProductId || ProductStore.slugify(trimmedName) || `product-${products.length + 1}`;
 
     try {
+      setIsSubmitting(true);
       const savedProduct = await onSaveProduct({
         ...formData,
         id: normalizedId,
@@ -184,6 +230,8 @@ function AdminPage({
       );
     } catch (error) {
       setFormMessage(error instanceof Error ? error.message : "Produk gagal disimpan.");
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
@@ -219,9 +267,9 @@ function AdminPage({
   return (
     <main className="admin-page">
       <section className="admin-shell">
-        <header className="admin-topbar">
-          <div className="admin-brand" aria-label="Admin ETC">
-            <span className="admin-brand-mark">P</span>
+        <header className="admin-topbar" aria-label="Admin ETC">
+          <div className="admin-brand">
+            <img src="/gambar/P/Logo%20ETC%20clear.png" alt="ETC Logo" className="admin-brand-logo" />
           </div>
         </header>
 
@@ -420,8 +468,8 @@ function AdminPage({
 
                 {formMessage ? <p className="admin-form-message">{formMessage}</p> : null}
 
-                <button type="submit" className="admin-save-button">
-                  {editingProductId ? "Simpan perubahan" : "Tambah produk"}
+                <button type="submit" className="admin-save-button" disabled={isSubmitting}>
+                  {isSubmitting ? "Sedang memproses..." : (editingProductId ? "Simpan perubahan" : "Tambah produk")}
                 </button>
               </form>
             </section>
@@ -435,12 +483,12 @@ function AdminPage({
             <div className="admin-editor-head">
               <div>
                 <p className="side-menu-label">User</p>
-                <h2>User yang baru membeli barang</h2>
+                <h2>Daftar Aktivitas User</h2>
               </div>
             </div>
 
             {buyerUsersWithComments.length === 0 ? (
-              <p>Belum ada user yang melakukan pembelian.</p>
+              <p>Belum ada user yang berinteraksi (beli atau komentar).</p>
             ) : (
               <div className="admin-user-list">
                 {buyerUsersWithComments.map((user) => (
@@ -452,22 +500,35 @@ function AdminPage({
                       <strong>{user.name}</strong>
                       <p>{user.email}</p>
                       <span>
-                        Pembelian terakhir{" "}
+                        Aktivitas terakhir{" "}
                         {new Date(user.createdAt).toLocaleString("id-ID", {
                           dateStyle: "medium",
                           timeStyle: "short",
                         })}
                       </span>
-                      {user.latestComment ? (
-                        <div className="admin-user-comment">
-                          <strong>Komentar terakhir di {user.commentedProductName || "produk"}</strong>
-                          <p>{user.latestComment.message}</p>
-                          <span>
-                            {new Date(user.latestComment.createdAt).toLocaleString("id-ID", {
-                              dateStyle: "medium",
-                              timeStyle: "short",
-                            })}
-                          </span>
+                      
+                      {user.allComments && user.allComments.length > 0 ? (
+                        <div className="admin-user-comments-list" style={{ marginTop: '10px' }}>
+                          {user.allComments.map((comment) => {
+                            const product = products.find((p) => Number(p.dbId) === Number(comment.productId));
+                            return (
+                              <div className="admin-user-comment" key={comment.id}>
+                                <strong>Komentar di {product?.name || "produk"}</strong>
+                                <p>{comment.message}</p>
+                                <div className="admin-comment-footer">
+                                  <span>
+                                    {new Date(comment.createdAt).toLocaleString("id-ID", {
+                                      dateStyle: "medium",
+                                      timeStyle: "short",
+                                    })}
+                                  </span>
+                                  <button type="button" onClick={() => onDeleteComment(comment.id)}>
+                                    Hapus
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       ) : (
                         <div className="admin-user-comment is-empty">
@@ -479,15 +540,6 @@ function AdminPage({
                     <div className="admin-user-side">
                       <span className={`admin-status-badge is-${user.status}`.trim()}>{user.status}</span>
                       <strong>{formatPrice(user.totalPrice)}</strong>
-                      {user.latestComment ? (
-                        <button
-                          type="button"
-                          className="admin-comment-delete"
-                          onClick={() => onDeleteComment(user.latestComment.id)}
-                        >
-                          Hapus komentar
-                        </button>
-                      ) : null}
                     </div>
                   </article>
                 ))}

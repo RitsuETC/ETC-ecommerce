@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import Swal from "sweetalert2";
 import "./App.css";
 import CartStore from "./utils/cartStore";
 import { parsePrice } from "./utils/price";
@@ -532,7 +533,7 @@ function App() {
 
   useEffect(() => {
     return () => {
-      if (paymentProofPreview) {
+      if (paymentProofPreview && paymentProofPreview.startsWith("blob:")) {
         URL.revokeObjectURL(paymentProofPreview);
       }
     };
@@ -616,6 +617,29 @@ function App() {
   }
 
   function openAdminPage() {
+    if (user && user.role === "user") {
+      Swal.fire({
+        title: "<strong>Hubungi Admin</strong>",
+        html: `
+          <p>Gunakan link di bawah ini untuk menghubungi admin:</p>
+          <a href="https://discord.gg/g2yTb49ZmX" target="_blank" rel="noopener noreferrer" style="color: #3085d6; text-decoration: underline; font-weight: bold;">
+            https://discord.gg/g2yTb49ZmX
+          </a>
+          <p style="margin-top: 15px;">Atau klik tombol di bawah untuk langsung membuka Discord.</p>
+        `,
+        icon: "info",
+        showCancelButton: true,
+        confirmButtonText: "Buka Discord",
+        cancelButtonText: "Tutup",
+        confirmButtonColor: "#5865F2",
+      }).then((result) => {
+        if (result.isConfirmed) {
+          window.open("https://discord.gg/g2yTb49ZmX", "_blank");
+        }
+      });
+      return;
+    }
+
     ensurePageAccess(
       "admin",
       "Akses admin hanya untuk akun yang login dan punya role admin."
@@ -866,32 +890,39 @@ function App() {
     if (!nextFile) return;
 
     if (!nextFile.type.startsWith("image/")) {
-      window.alert("Bukti pembayaran harus berupa gambar.");
+      Swal.fire("Gagal", "Bukti pembayaran harus berupa gambar.", "error");
       event.target.value = "";
       return;
     }
 
-    if (paymentProofPreview) {
-      URL.revokeObjectURL(paymentProofPreview);
+    const MAX_SIZE = 2 * 1024 * 1024; // 2MB
+    if (nextFile.size > MAX_SIZE) {
+      Swal.fire("Gagal", "Ukuran file terlalu besar. Maksimal 2MB.", "error");
+      event.target.value = "";
+      return;
     }
 
-    setPaymentProofFile(nextFile);
-    setPaymentProofPreview(URL.createObjectURL(nextFile));
+    const reader = new FileReader();
+    reader.onload = () => {
+      setPaymentProofFile(nextFile);
+      setPaymentProofPreview(String(reader.result || ""));
+    };
+    reader.readAsDataURL(nextFile);
   }
 
   async function handleSendPaymentProof() {
     if (paymentItems.length === 0) {
-      window.alert("Belum ada produk yang masuk ke halaman pembayaran.");
+      Swal.fire("Info", "Belum ada produk untuk dibayar.", "info");
       return;
     }
 
     if (!paymentProofFile) {
-      window.alert("Upload bukti pembayaran dulu sebelum mengirim.");
+      Swal.fire("Peringatan", "Upload bukti pembayaran dulu.", "warning");
       return;
     }
 
     if (!paymentMethod) {
-      window.alert("Pilih metode pembayaran dulu.");
+      Swal.fire("Peringatan", "Pilih metode pembayaran dulu.", "warning");
       return;
     }
 
@@ -913,14 +944,15 @@ function App() {
       const result = await response.json();
 
       if (!response.ok || !result.success) {
-        window.alert(result.message || "Transaksi gagal dikirim.");
+        Swal.fire("Gagal", result.message || "Transaksi gagal dikirim.", "error");
         return;
       }
 
       const nextTransactions = Array.isArray(result.data?.items) ? result.data.items : transactions;
       setTransactions(nextTransactions);
+      Swal.fire("Berhasil", "Bukti pembayaran telah dikirim!", "success");
     } catch {
-      window.alert("Koneksi backend transaksi gagal.");
+      Swal.fire("Error", "Koneksi backend transaksi gagal.", "error");
       return;
     }
 

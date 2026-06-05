@@ -59,7 +59,10 @@ function PaymentPage({
                 <span>Total harga</span>
                 <strong>{formatPrice(paymentTotalPrice)}</strong>
               </div>
-
+              <div className="nomor">
+                <span>Nomor Pembayaran </span>
+                <strong>"085713910078"</strong>
+              </div>
               <div className="payment-method-box">
                 <label className="payment-upload-label" htmlFor="payment-method">
                   Pilih metode pembayaran
